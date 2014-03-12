@@ -1,0 +1,425 @@
+#!/bin/bash
+
+# Current Day in the time ranges:
+#     gpsar -s "10:00:00" -e "11:00:00"
+# /var/log/sa/02 in the time ranges:
+#     gpsar -s "10:00:00" -e "11:00:00" "02"
+# /var/log/sa/28 from -s and /var/log/sa/0[12] with 02 until -e
+#     gpsar -s "10:00:00" -e "11:00:00" "28" "01" "02"
+
+SADF=/usr/bin/sadf
+SADF_OPTS="-d -t"
+SARPATH=/var/log/sa/
+
+NET=gpsar_net
+PGE=gpsar_pge
+SWP=gpsar_swp
+MEM=gpsar_mem
+BUF=gpsar_buf
+CPU=gpsar_cpu
+
+# Temporary adoc report name
+ADOC=gpsar_adoc.txt
+
+# Report Outputted to here.
+HTML=gpsar.html
+
+COLORS='
+set style line 1 lt rgb "#CD5C5C" lw 3          # indianred
+set style line 2 lt rgb "orange" lw 3
+set style line 3 lt rgb "orchid" lw 3
+set style line 4 lt rgb "#6A5ACD" lw 3          # slateblue
+set style line 5 lt rgb "#32CD32" lw 3          # limegreen
+set style line 6 lt rgb "#DAA520" lw 3          # goldenrod
+set style line 7 lt rgb "aquamarine" lw 3    
+set style line 8 lt rgb "#008B8B" lw 3          # darkcyan
+set style line 9 lt rgb "#778899" lw 3          # lightslategray
+set style line 10 lt rgb "#808000" lw 3'        # olive
+
+usage()
+{
+    echo "Usage: $0 [-s HH:MM:SS][-e HH:MM:SS][-i iface][-f datafile] [DD]..." 1>&2
+    exit 1
+}
+
+timeok()
+{
+    # $1 time string in HH:MM:SS format
+    PAT='^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+    if [[ ! "$1" =~ ${PAT} ]] ; then
+        echo "ERROR: Invalid HH:MM:SS time format: $1" 1>&2
+        usage
+    fi
+}
+
+wrapsadf()
+{
+    # $1 current DD arg num
+    # $2 total number of DD args
+    # $3 sar_options
+    # $4 empty or path to sar data
+    local sarg
+    local earg
+    if [ $1 -eq 1 -a -n "${stime}" ] ; then
+        sarg="-s ${stime}"
+    fi
+    if [ $2 -eq $1 -a -n "${etime}" ] ; then
+        earg="-e ${etime}"
+    fi
+    
+    if [ $1 -eq 1 ] ; then
+        # uncomment the header for use in the graph
+        HEADER="sed s/^#//"
+    else
+        # remove the complete header as combining with
+        # previous sadf output that contains the header
+        HEADER="tail -n +2"
+    fi
+    ${SADF} ${SADF_OPTS} ${sarg} ${earg} -- $3 $4 | $HEADER
+    return $?
+}
+
+combinedsadf()
+{
+    # $1 arguments for sar
+    # $2, $3, ... DD args
+    sarargs=$1
+    shift
+    if [ $# -eq 0 ] ; then
+        wrapsadf 1 1 "${sarargs}" ${sarfile} || exit 1
+    else
+        cnt=1
+        for dd in $@ ; do
+            sarfile=${SARPATH}sa${dd}
+            if [ ! -e ${sarfile} ] ; then
+                echo "ERROR: ${dd} doesn't exist as file ${sarfile}" 1>&2
+                usage
+            fi
+            wrapsadf ${cnt} $# "${sarargs}" ${sarfile} || exit 1
+            (( cnt++ ))
+        done
+    fi
+}
+
+swp_graph()
+{
+    gnuplot << EOF
+set term pngcairo size 1280,480
+set output "${SWP}.png" 
+set datafile separator ";"
+$COLORS
+set grid
+set key outside vertical right center nobox title "Swap Used"
+set autoscale
+set yrange[0:100]
+set xdata time
+set timefmt "%Y-%m-%d %H-%M-%S"
+set format x "%m/%d %H:%M"
+set format y "%.0f%%"
+set xtics rotate by 90 offset 0,-5 out nomirror
+set style data lines
+set lmargin at screen 0.08
+set rmargin at screen 0.80
+plot for [i in "6"] "${SWP}.sadf" using 3:i ls i title columnheader(i)
+EOF
+}
+
+# TODO: Fix y axis % format
+# add check for column names matching our expectations
+mem_graph()
+{
+    gnuplot << EOF
+set term pngcairo size 1280,480
+set output "${MEM}.png" 
+set datafile separator ";"
+$COLORS
+set grid
+set key outside vertical right center nobox title "Memory"
+set autoscale
+set xdata time
+set timefmt "%Y-%m-%d %H-%M-%S"
+set format x "%m/%d %H:%M"
+set format y "%.0f%%"
+set xtics rotate by 90 offset 0,-5 out nomirror
+set yrange [0:100]
+set style data lines
+set lmargin at screen 0.08
+set rmargin at screen 0.80
+plot for [i in "6 10"] "${MEM}.sadf" using 3:i ls i title columnheader(i)
+EOF
+}
+
+buf_graph()
+{
+    gnuplot << EOF
+set term pngcairo size 1280,480
+set output "${BUF}.png" 
+set datafile separator ";"
+$COLORS
+set grid
+set key outside vertical right center nobox title "Buffers/Cached"
+set autoscale
+set xdata time
+set timefmt "%Y-%m-%d %H-%M-%S"
+set format x "%m/%d %H:%M"
+set format y "%.1s%cb"
+set xtics rotate by 90 offset 0,-5 out nomirror
+set style data lines
+set lmargin at screen 0.08
+set rmargin at screen 0.80
+plot "${MEM}.sadf" \
+        using 3:(\$7*1024) title columnheader(7) ls 6,\
+     '' using 3:(\$8*1024) title columnheader(8) ls 8
+EOF
+}
+
+pge_graph()
+{
+    gnuplot << EOF
+set term pngcairo size 1280,480
+set output "${PGE}.png" 
+set datafile separator ";"
+$COLORS
+set grid
+set key outside vertical right center nobox title "Page In/Out"
+set autoscale
+set yrange[0:]
+set xdata time
+set timefmt "%Y-%m-%d %H-%M-%S"
+set format x "%m/%d %H:%M"
+set xtics rotate by 90 offset 0,-5 out nomirror
+set style data lines
+set lmargin at screen 0.08
+set rmargin at screen 0.80
+plot for [i in "4 5"] "${PGE}.sadf" using 3:i ls i title columnheader(i)
+EOF
+}
+
+cpu_graph()
+{
+    cpucnt=`tail -n +2 ${CPU}.sadf | cut -d';' -f4 | sort -nu | wc -l`
+    ((cpucnt--)) # remove -1 (which is ALL) from count
+    if [ ${cpucnt} -gt 4 ] ; then
+        echo "WARNING: ${cpucnt} CPUs found. Graph is limited to 4." 1>&2
+        cpucnt=4
+    fi
+    ((layrows=cpucnt+2)) # add 1 for ALL and 1 for xtics on bottom
+    if [ ${cpucnt} -le 2 ] ; then
+        ((imgheight=480*cpucnt))
+    else
+        ((imgheight=1280))
+    fi
+    GP=`mktemp`
+    cat > ${GP} << EOF
+set term pngcairo size 1280,${imgheight}
+set output "${CPU}.png" 
+set multiplot layout ${layrows}, 1
+set datafile separator ";"
+$COLORS
+set grid ytics
+set autoscale
+set yrange [0:100]
+set style data boxes
+set style fill solid noborder
+set xdata time
+set timefmt "%Y-%m-%d %H-%M-%S"
+set format x "%m/%d %H:%M"
+set format y "%.0f%%"
+set bmargin 0
+set tmargin 1
+set lmargin at screen 0.08
+set rmargin at screen 0.80
+unset xtics
+EOF
+    cpu=0
+    while [ ${cpu} -lt ${cpucnt} ] ; do
+        if [ ${cpu} -ne 0 ] ; then 
+            echo "set tmargin 0" >> ${GP}
+        fi
+        cat >> ${GP} << EOF
+set key outside vertical right center nobox title "CPU ${cpu}"
+plot "<(awk -F';' '\$4 ~ /^CPU|${cpu}\$/' ${CPU}.sadf)" \
+        using 3:(\$5+\$7+\$8) title columnheader(8) ls 1,\
+     '' using 3:(\$5+\$7) title columnheader(7) ls 4,\
+     '' using 3:5 title columnheader(5) ls 5
+EOF
+        ((cpu++))
+    done
+    cat >> ${GP} << EOF
+set key outside vertical right center nobox title "CPU ALL"
+set xtics rotate by 90 offset 0,-5 out nomirror
+plot "<(awk -F';' '\$4 ~ /^CPU|-1\$/' ${CPU}.sadf)" \
+        using 3:(\$5+\$7+\$8) title columnheader(8) ls 1,\
+     '' using 3:(\$5+\$7) title columnheader(7) ls 4,\
+     '' using 3:5 title columnheader(5) ls 5
+unset multiplot
+EOF
+    gnuplot ${GP}
+    rm ${GP}
+}
+
+net_graph()
+{
+    # $1 filename
+    # $2 interface
+    availifaces=`tail -n +2 gpsar_net.sadf | cut -d';' -f4 | sort -u`
+    if [ -z "${ifaces}" ] ; then
+        ifaces=${availifaces}
+    fi
+    for iface in ${ifaces} ; do
+        echo ${availifaces} | egrep -q "(^| )${iface}( |\$)"
+        if [ $? -ne 0 ] ; then
+            echo "ERROR: Interface ${iface} is not available." 1>&2
+            exit 1
+        fi
+        GP=`mktemp`
+        cat > ${GP} << EOF
+set term pngcairo size 1280,480
+set output "${NET}-${iface}.png" 
+set datafile separator ";"
+$COLORS
+set grid
+set title "Network Utilization"
+set key outside vertical right center nobox title "\"${iface}\""
+set autoscale
+set style data lines
+set yrange[0:]
+set y2range[0:]
+set y2label "pck/s"
+set y2tics
+set ytics nomirror
+set xdata time
+set timefmt "%Y-%m-%d %H-%M-%S"
+set format x "%m/%d %H:%M"
+#set format y "%.1s%cb/s"
+set format y "%.1s%cb"
+set xtics rotate by 90 offset 0,-5 out nomirror
+set lmargin at screen 0.08
+set rmargin at screen 0.80
+plot "<(awk -F';' '\$4 ~ /^IFACE|${iface}\$/' ${NET}.sadf)" \
+        using 3:((\$7+\$8)*8) title "bits/s" ls 4 with linespoints,\
+     "" using 3:5 title columnheader(5) ls 2 axes x1y2,\
+     "" using 3:6 title columnheader(6) ls 3 axes x1y2
+EOF
+        gnuplot ${GP}
+        rm ${GP}
+    done
+}
+
+# TODO
+NODE=`uname -n`
+REPORT_TITLE="gpsar ${NODE} System Report"
+REPORT_COPY="Copyright (c) 2013-2014 Cloudian KK. All rights reserved."
+REPORT_AUTHOR="Copyright (c) 2013-2014 Cloudian KK. All rights reserved."
+
+adoc_title()
+{
+    DATE=`date`
+    cat << EOF
+= ${REPORT_TITLE}
+:Copyright: ${REPORT_COPY}
+:Date: ${DATE}
+:Author: ${REPORT_AUTHOR}
+
+EOF
+}
+
+adoc_graph()
+{
+    # $1 section title
+    # $2... graphs
+    echo "=== $1"
+    shift
+    for graph in $@ ; do
+        echo "image:${graph}[]"
+        echo ""
+    done
+}
+
+adoc_section()
+{
+    # $1 section title
+    echo "== $1"
+    echo ""
+}
+
+adoc_report()
+{
+    adoc_title > ${ADOC}
+    adoc_section "System Performance" >> ${ADOC}
+    adoc_graph "System CPU" ${CPU}.png >> ${ADOC}
+    adoc_graph "System Network" ${NET}-*.png >> ${ADOC}
+    adoc_graph "System Memory" ${MEM}.png >> ${ADOC}
+    adoc_graph "System Memory Buffers" ${BUF}.png >> ${ADOC}
+    adoc_graph "System Paging" ${PGE}.png >> ${ADOC}
+    adoc_graph "System Swapping" ${SWP}.png >> ${ADOC}
+}
+
+html_report()
+{
+    echo "Writing: ${HTML}"
+    asciidoc -a data-uri -a icons -a toc -n -o ${HTML} ${ADOC}
+}
+
+while getopts ":e:f:i:s:" opt; do
+    case "${opt}" in
+        e)
+            etime=${OPTARG}
+            timeok ${stime}
+            ;;
+        f)
+            sarfile=${OPTARG}
+            ;;
+        i)
+            # "eth0 eth1" ... network interfaces in a string. 
+            ifaces=${OPTARG}
+            ;;
+        s)
+            stime=${OPTARG}
+            timeok ${stime}
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if [ -n "${sarfile}" ] ; then
+    if [ $# -ne 0 ] ; then
+        echo "ERROR: -f is mutually exclusive with specifying DD files."
+        usage
+    elif [ ! -r ${sarfile} ] ; then
+        echo "ERROR: Cannot read the sar data file \"${sarfile}\"."
+        usage
+    fi
+fi
+
+# Get the SADF generated sar data for the time ranges specified
+# and dump to individual working files.
+combinedsadf "-n DEV" $@ > ${NET}.sadf
+combinedsadf "-W" $@ > ${PGE}.sadf
+combinedsadf "-S" $@ > ${SWP}.sadf
+combinedsadf "-P ALL" $@ > ${CPU}.sadf
+combinedsadf "-r" $@ > ${MEM}.sadf
+
+# Generate the graphs
+pge_graph
+swp_graph
+cpu_graph
+mem_graph
+buf_graph
+net_graph
+
+# Intermediate asciidoc file
+adoc_report
+
+# Generate the html report
+html_report
+
+# Clean up working files
+for rtype in ${NET} ${PGE} ${SWP} ${CPU} ${MEM} ${BUF} ; do
+    rm -f ${rtype}.sadf
+    rm -f ${rtype}*.png
+done
+rm -f ${ADOC}
