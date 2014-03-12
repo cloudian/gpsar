@@ -11,6 +11,8 @@ SADF=/usr/bin/sadf
 SADF_OPTS="-d -t"
 SARPATH=/var/log/sa/
 
+VERSION=APP_VERSION
+
 NET=gpsar_net
 PGE=gpsar_pge
 SWP=gpsar_swp
@@ -38,7 +40,12 @@ set style line 10 lt rgb "#808000" lw 3'        # olive
 
 usage()
 {
-    echo "Usage: $0 [-s HH:MM:SS][-e HH:MM:SS][-i iface][-f datafile] [DD]..." 1>&2
+    cat 1>&2 << EOF
+Usage:
+gpsar [-s HH:MM:SS][-e HH:MM:SS][-i iface] [DD]...
+gpsar [-s HH:MM:SS][-e HH:MM:SS][-i iface] -f datafile
+gpsar -v
+EOF
     exit 1
 }
 
@@ -361,7 +368,7 @@ html_report()
     asciidoc -a data-uri -a icons -a toc -n -o ${HTML} ${ADOC}
 }
 
-while getopts ":e:f:i:s:" opt; do
+while getopts ":e:f:i:s:v" opt; do
     case "${opt}" in
         e)
             etime=${OPTARG}
@@ -377,6 +384,10 @@ while getopts ":e:f:i:s:" opt; do
         s)
             stime=${OPTARG}
             timeok ${stime}
+            ;;
+        v)
+            echo "gpsar version: ${VERSION}" 1>&2
+            exit 0
             ;;
         *)
             usage
