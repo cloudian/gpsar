@@ -95,5 +95,7 @@ exit 0
 exit 0
 
 %changelog
+* Thu Mar 13 2014 Cloudian Inc <support@cloudian.com> - 0.2-1
+- Various Fixes for CentOS 6.
 * Thu Mar 13 2014 Cloudian Inc <support@cloudian.com> - 0.1-1
 - Initial RPM Release
