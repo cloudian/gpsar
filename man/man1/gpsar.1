@@ -1,0 +1,65 @@
+.\"gpsar is copyright Cloudian KK..
+.Dd 2014 Cloudian KK.
+.Dt gpsar(1) "" "gpsar - Gnuplot SAR data files into HTML"
+.\".Dt gpsar 1
+.Os UNIX
+.Sh NAME
+.Nm gpsar
+.Nd Gnuplot a servers sar data files and create a HTML summary.
+.Sh SYNOPSIS
+.Nm
+.Op Fl e Ar HH:MM:SS
+.Op Fl i Ar iface
+.Op Fl s Ar HH:MM:SS
+.Op Ar DD Cm ...
+.Nm
+.Op Fl e Ar HH:MM:SS
+.Op Fl i Ar iface
+.Op Fl s Ar HH:MM:SS
+.Op Fl f Ar datafile
+.Nm
+.Op Fl v
+.Sh DESCRIPTION
+This is gpsar. It's a tiny (relatively) shell script that looks at the
+servers sar data files, processes them with sadf and runs them through
+Gnuplot to generate a series of graphs before creating a HTML summary
+which contains the images.
+.Pp
+The \fIDD\fR argument is the day of the month and should be provided
+using leading zeros. Multiple days can be given by just repeating the
+days one after the other with white space. "\fBgpsar\fR \fI14 15\fR"
+would tell the command to use sar data from the 14th and 15th of
+either the last month or the current month. Typically gpsar will read
+the sar data from /var/log/sa/sa14 and /var/log/sa/sa15 in this case.
+.Pp
+The command current create the \fBgpsar.html\fR file in the current
+working directory.
+.Pp
+.Sh OPTIONS
+The \fBgpsar\fR script takes several options which are described below.
+.Bl -tag -width "1234567890123" -compact
+.Pp
+.It \fB-e\fR \fIHH:MM:SS\fR
+Similar to the sadf command, this option sets the ending time of the
+report. The time is assumed to be in local time.
+.Pp
+.It \fB-f\fR \fIdatafile\fR
+Instead of using the system's sar files directly, use the given
+\fIdatafile\fR. This is again similar to the \fIdatafile\fR option
+of the sadf command.
+.Pp
+.It \fB-i\fR \fIiface\fR
+Only graph certain network interfaces. This is handy on machines that
+have a large number of uninteresting interfaces. You can select multiple
+interfaces by using quotes. Example \fB-i "eth0 eth1"\fR.
+.Pp
+.It \fB-s\fR \fIHH:MM:SS\fR
+Similar to the sadf command, this option sets the start time of the
+report. The time is assumed to be in local time.
+.Pp
+.It \fB-v\fR
+Output the version of the gpsar program and exit.
+.El
+.Sh AUTHORS
+Cloudian KK.
+.An http://www.cloudian.com

@@ -10,7 +10,7 @@
 %define version         %{_version}
 %define app_version     %{_app_version}
 
-%define summary         Generate a html sar report using Gnuplot
+%define summary         Generate a HTML SAR report using Gnuplot
 
 %define platform_bin_dir   %{_sbindir}
 %define platform_doc_dir   %{_defaultdocdir}/gpsar
@@ -53,18 +53,18 @@ make version
 
 %define buildroot_bin         %{buildroot}/%{platform_bin_dir}
 %define buildroot_docs        %{buildroot}/%{platform_doc_dir}
-# %define buildroot_man         %{buildroot}/%{_mandir}
+%define buildroot_man         %{buildroot}/%{_mandir}
 
 %__install -d %{buildroot_bin}
 %__install -d %{buildroot_docs}
-# %__install -d %{buildroot_man}/man1
+%__install -d %{buildroot_man}/man1
 
-%__install -m 0755 gpsar         %{buildroot_bin}
+%__install -m 0755 bin/gpsar     %{buildroot_bin}
 %__install -m 0644 README        %{buildroot_docs}
 %__install -m 0644 COPYING       %{buildroot_docs}
 
-# gzip %{relpath}/man/man1/*
-#%__install -m 0644 %{relpath}/man/man1/*    %{buildroot_man}/man1
+gzip man/man1/*
+%__install -m 0644 man/man1/*    %{buildroot_man}/man1
 
 %files
 # List of files in the RPM
@@ -72,7 +72,7 @@ make version
 %{platform_bin_dir}/gpsar
 
 %doc %{platform_doc_dir}/*
-# %{_mandir}/man1/*
+%{_mandir}/man1/*
 
 %clean
 # clean the buildroot

@@ -20,7 +20,7 @@ all:
 
 version:
 	# Only run from rpm as it modifies the script
-	sed -i -e "s/APP_VERSION/${APPVERSION}/" gpsar
+	sed -i -e "s/APP_VERSION/${APPVERSION}/" bin/gpsar
 
 clean:
 	-rm -rf rpmbuild
