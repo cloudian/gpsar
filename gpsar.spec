@@ -13,12 +13,12 @@
 %define summary         Generate a html sar report using Gnuplot
 
 %define platform_bin_dir   %{_sbindir}
-%define platform_doc_dir   %{_defaultdocdir}
+%define platform_doc_dir   %{_defaultdocdir}/gpsar
 
 Summary:        %{summary}
 Vendor:         Cloudian Inc.
 URL:            http://www.cloudian.com
-License:        GPL+
+License:        GPLv3
 Name:           %{name}
 Version:        %{version}
 Release:        %{release}
@@ -52,15 +52,16 @@ make version
 %__rm -rf %{buildroot}
 
 %define buildroot_bin         %{buildroot}/%{platform_bin_dir}
-# %define buildroot_docs        %{buildroot}/%{platform_doc_dir}
+%define buildroot_docs        %{buildroot}/%{platform_doc_dir}
 # %define buildroot_man         %{buildroot}/%{_mandir}
 
 %__install -d %{buildroot_bin}
-# %__install -d %{buildroot_docs}
+%__install -d %{buildroot_docs}
 # %__install -d %{buildroot_man}/man1
 
 %__install -m 0755 gpsar         %{buildroot_bin}
-# %__install -m 0644 README        %{buildroot_docs}
+%__install -m 0644 README        %{buildroot_docs}
+%__install -m 0644 COPYING       %{buildroot_docs}
 
 # gzip %{relpath}/man/man1/*
 #%__install -m 0644 %{relpath}/man/man1/*    %{buildroot_man}/man1
@@ -70,7 +71,7 @@ make version
 %defattr(-,root,root,-)
 %{platform_bin_dir}/gpsar
 
-# %doc %{platform_doc_dir}/*
+%doc %{platform_doc_dir}/*
 # %{_mandir}/man1/*
 
 %clean
@@ -94,5 +95,5 @@ exit 0
 exit 0
 
 %changelog
-* Wed Mar 12 2014 Cloudian Inc <support@cloudian.com> - 1.0-1
+* Thu Mar 13 2014 Cloudian Inc <support@cloudian.com> - 0.1-1
 - Initial RPM Release

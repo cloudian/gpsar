@@ -1,0 +1,10 @@
+This is gpsar. It's a tiny (relatively) shell script that looks at the
+servers sar data files, processes them with sadf and runs them through
+Gnuplot to generate a series of graphs before creating a HTML summary
+which contains the images.
+
+The script is young (currently) and has some basic graphing right now
+but it could be better. Feel free to make the graphs prettier and pass
+the changes back.
+
+Download/Contribute via https://github.com/cloudian/gpsar
