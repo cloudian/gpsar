@@ -145,9 +145,21 @@ check_gnuplot()
     fi
 }
 
+check_sadf()
+{
+    # check which time format sadf outputs
+    ${SADF} ${SADF_OPTS} | tail -1 | cut -d';' -f3 | egrep -q -e ':[0-9]{2}$'
+    if [ $? -eq 0 ] ; then
+        SADF_TSFMT="%Y-%m-%d %H:%M:%S"
+    else
+        SADF_TSFMT="%Y-%m-%d %H-%M-%S"
+    fi
+}
+
 check_capabilities()
 {
     check_gnuplot
+    check_sadf
 }
 
 swp_graph()
@@ -162,7 +174,7 @@ set key outside vertical right center nobox title "Swap Used"
 set autoscale
 set yrange[0:100]
 set xdata time
-set timefmt "%Y-%m-%d %H-%M-%S"
+set timefmt "${SADF_TSFMT}"
 set format x "%m/%d %H:%M"
 set format y "%.0f%%"
 set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
@@ -187,7 +199,7 @@ set grid
 set key outside vertical right center nobox title "Memory"
 set autoscale
 set xdata time
-set timefmt "%Y-%m-%d %H-%M-%S"
+set timefmt "${SADF_TSFMT}"
 set format x "%m/%d %H:%M"
 set format y "%.0f%%"
 set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
@@ -211,7 +223,7 @@ set grid
 set key outside vertical right center nobox title "Buffers/Cached"
 set autoscale
 set xdata time
-set timefmt "%Y-%m-%d %H-%M-%S"
+set timefmt "${SADF_TSFMT}"
 set format x "%m/%d %H:%M"
 set format y "%.1s%cb"
 set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
@@ -236,7 +248,7 @@ set key outside vertical right center nobox title "Page In/Out"
 set autoscale
 set yrange[0:]
 set xdata time
-set timefmt "%Y-%m-%d %H-%M-%S"
+set timefmt "${SADF_TSFMT}"
 set format x "%m/%d %H:%M"
 set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
 set style data lines
@@ -274,7 +286,7 @@ set yrange [0:100]
 set style data boxes
 set style fill solid noborder
 set xdata time
-set timefmt "%Y-%m-%d %H-%M-%S"
+set timefmt "${SADF_TSFMT}"
 set format x "%m/%d %H:%M"
 set format y "%.0f%%"
 set bmargin 0
@@ -341,7 +353,7 @@ set y2label "pck/s"
 set y2tics
 set ytics nomirror
 set xdata time
-set timefmt "%Y-%m-%d %H-%M-%S"
+set timefmt "${SADF_TSFMT}"
 set format x "%m/%d %H:%M"
 #set format y "%.1s%cb/s"
 set format y "%.1s%cb"
