@@ -46,12 +46,12 @@ HTML=gpsar.html
 
 COLORS='
 set style line 1 lt rgb "#CD5C5C" lw 3          # indianred
-set style line 2 lt rgb "orange" lw 3
-set style line 3 lt rgb "orchid" lw 3
+set style line 2 lt rgb "#FFA500" lw 3          # orange
+set style line 3 lt rgb "#DA70D6" lw 3          # orchid
 set style line 4 lt rgb "#6A5ACD" lw 3          # slateblue
 set style line 5 lt rgb "#32CD32" lw 3          # limegreen
 set style line 6 lt rgb "#DAA520" lw 3          # goldenrod
-set style line 7 lt rgb "aquamarine" lw 3    
+set style line 7 lt rgb "#7FFFD4" lw 3          # aquamarine
 set style line 8 lt rgb "#008B8B" lw 3          # darkcyan
 set style line 9 lt rgb "#778899" lw 3          # lightslategray
 set style line 10 lt rgb "#808000" lw 3'        # olive
@@ -128,10 +128,32 @@ combinedsadf()
     fi
 }
 
+check_gnuplot()
+{
+    gnuplot -e "set term pngcairo" < /dev/null 1>/dev/null 2>&1
+    if [ $? -eq 0 ] ; then
+        # Have at least gnuplot 4.4
+        GPTERM=pngcairo
+        GPXTIC_OFFSET="0,-5"
+    else
+        # Assume RH6 for now which has gnuplot 4.2 and also
+        # has font problems with arial.
+        GPTERM=png
+        export GDFONTPATH=/usr/share/fonts/liberation
+        export GNUPLOT_DEFAULT_GDFONT=LiberationSans-Regular
+        GPXTIC_OFFSET="0,0"
+    fi
+}
+
+check_capabilities()
+{
+    check_gnuplot
+}
+
 swp_graph()
 {
     gnuplot << EOF
-set term pngcairo size 1280,480
+set term ${GPTERM} size 1280,480
 set output "${SWP}.png" 
 set datafile separator ";"
 $COLORS
@@ -143,11 +165,12 @@ set xdata time
 set timefmt "%Y-%m-%d %H-%M-%S"
 set format x "%m/%d %H:%M"
 set format y "%.0f%%"
-set xtics rotate by 90 offset 0,-5 out nomirror
+set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
 set style data lines
+set key autotitle columnhead
 set lmargin at screen 0.08
 set rmargin at screen 0.80
-plot for [i in "6"] "${SWP}.sadf" using 3:i ls i title columnheader(i)
+plot "${SWP}.sadf" using 3:6 ls 6
 EOF
 }
 
@@ -156,7 +179,7 @@ EOF
 mem_graph()
 {
     gnuplot << EOF
-set term pngcairo size 1280,480
+set term ${GPTERM} size 1280,480
 set output "${MEM}.png" 
 set datafile separator ";"
 $COLORS
@@ -167,19 +190,20 @@ set xdata time
 set timefmt "%Y-%m-%d %H-%M-%S"
 set format x "%m/%d %H:%M"
 set format y "%.0f%%"
-set xtics rotate by 90 offset 0,-5 out nomirror
+set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
 set yrange [0:100]
 set style data lines
+set key autotitle columnhead
 set lmargin at screen 0.08
 set rmargin at screen 0.80
-plot for [i in "6 10"] "${MEM}.sadf" using 3:i ls i title columnheader(i)
+plot "${MEM}.sadf" using 3:6 ls 6, "" using 3:10 ls 10
 EOF
 }
 
 buf_graph()
 {
     gnuplot << EOF
-set term pngcairo size 1280,480
+set term ${GPTERM} size 1280,480
 set output "${BUF}.png" 
 set datafile separator ";"
 $COLORS
@@ -190,7 +214,7 @@ set xdata time
 set timefmt "%Y-%m-%d %H-%M-%S"
 set format x "%m/%d %H:%M"
 set format y "%.1s%cb"
-set xtics rotate by 90 offset 0,-5 out nomirror
+set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
 set style data lines
 set lmargin at screen 0.08
 set rmargin at screen 0.80
@@ -203,7 +227,7 @@ EOF
 pge_graph()
 {
     gnuplot << EOF
-set term pngcairo size 1280,480
+set term ${GPTERM} size 1280,480
 set output "${PGE}.png" 
 set datafile separator ";"
 $COLORS
@@ -214,11 +238,12 @@ set yrange[0:]
 set xdata time
 set timefmt "%Y-%m-%d %H-%M-%S"
 set format x "%m/%d %H:%M"
-set xtics rotate by 90 offset 0,-5 out nomirror
+set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
 set style data lines
 set lmargin at screen 0.08
 set rmargin at screen 0.80
-plot for [i in "4 5"] "${PGE}.sadf" using 3:i ls i title columnheader(i)
+plot "${PGE}.sadf" using 3:4 title columnheader(4) ls 4,\
+     "" using 3:5 title columnheader(5) ls 5
 EOF
 }
 
@@ -238,7 +263,7 @@ cpu_graph()
     fi
     GP=`mktemp`
     cat > ${GP} << EOF
-set term pngcairo size 1280,${imgheight}
+set term ${GPTERM} size 1280,${imgheight}
 set output "${CPU}.png" 
 set multiplot layout ${layrows}, 1
 set datafile separator ";"
@@ -274,7 +299,7 @@ EOF
     done
     cat >> ${GP} << EOF
 set key outside vertical right center nobox title "CPU ALL"
-set xtics rotate by 90 offset 0,-5 out nomirror
+set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
 plot "<(awk -F';' '\$4 ~ /^CPU|-1\$/' ${CPU}.sadf)" \
         using 3:(\$5+\$7+\$8) title columnheader(8) ls 1,\
      '' using 3:(\$5+\$7) title columnheader(7) ls 4,\
@@ -301,7 +326,7 @@ net_graph()
         fi
         GP=`mktemp`
         cat > ${GP} << EOF
-set term pngcairo size 1280,480
+set term ${GPTERM} size 1280,480
 set output "${NET}-${iface}.png" 
 set datafile separator ";"
 $COLORS
@@ -320,7 +345,7 @@ set timefmt "%Y-%m-%d %H-%M-%S"
 set format x "%m/%d %H:%M"
 #set format y "%.1s%cb/s"
 set format y "%.1s%cb"
-set xtics rotate by 90 offset 0,-5 out nomirror
+set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
 set lmargin at screen 0.08
 set rmargin at screen 0.80
 plot "<(awk -F';' '\$4 ~ /^IFACE|${iface}\$/' ${NET}.sadf)" \
@@ -337,7 +362,7 @@ EOF
 NODE=`uname -n`
 REPORT_TITLE="gpsar ${NODE} System Report"
 REPORT_COPY="Copyright (c) 2013-2014 Cloudian KK. All rights reserved."
-REPORT_AUTHOR="Copyright (c) 2013-2014 Cloudian KK. All rights reserved."
+REPORT_AUTHOR="gpsar version (${VERSION})"
 
 adoc_title()
 {
@@ -425,6 +450,8 @@ if [ -n "${sarfile}" ] ; then
         usage
     fi
 fi
+
+check_capabilities
 
 # Get the SADF generated sar data for the time ranges specified
 # and dump to individual working files.
