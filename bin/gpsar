@@ -372,7 +372,7 @@ EOF
 
 # TODO
 NODE=`uname -n`
-REPORT_TITLE="gpsar ${NODE} System Report"
+REPORT_TITLE="${NODE}: System Report"
 REPORT_COPY="Copyright (c) 2013-2014 Cloudian KK. All rights reserved."
 REPORT_AUTHOR="gpsar version (${VERSION})"
 
@@ -392,7 +392,7 @@ adoc_graph()
 {
     # $1 section title
     # $2... graphs
-    echo "=== $1"
+    adoc_section 3 "$1"
     shift
     for graph in $@ ; do
         echo "image:${graph}[]"
@@ -402,21 +402,60 @@ adoc_graph()
 
 adoc_section()
 {
-    # $1 section title
-    echo "== $1"
+    # $1 section type
+    # $2 section title
+    if [ $1 -eq 1 ] ; then
+        echo "= $2"
+    elif [ $1 -eq 2 ] ; then
+        echo "== $2"
+    elif [ $1 -eq 3 ] ; then
+        echo "=== $2"
+    else
+        echo "==== $2"
+    fi
     echo ""
+}
+
+adoc_system_info()
+{
+    adoc_section 2 "System Info"
+    adoc_section 3 "About"
+    cat << EOF
+----
+Node Name: $(uname -n)
+Redhat Release: $(cat /etc/redhat-release)
+
+Total Memory: $(grep -i 'memtotal' /proc/meminfo | sed 's/^[^0-9]\+//')
+Total Swap: $(grep -i 'swaptotal' /proc/meminfo | sed 's/^[^0-9]\+//')
+
+Kernel Release: $(uname -r)
+Kernel Version: $(uname -v)
+Processor Type: $(uname -p)
+----
+
+EOF
+    adoc_section 3 "/proc/cpuinfo"
+    echo "----"
+    egrep -i '^(processor|vendor_id|model name|cpu mhz|cache size)' /proc/cpuinfo
+    echo "----"
+}
+
+adoc_system_graphs()
+{
+    adoc_section 2 "System Performance"
+    adoc_graph "System CPU" ${CPU}.png
+    adoc_graph "System Network" ${NET}-*.png
+    adoc_graph "System Memory" ${MEM}.png
+    adoc_graph "System Memory Buffers" ${BUF}.png
+    adoc_graph "System Paging" ${PGE}.png
+    adoc_graph "System Swapping" ${SWP}.png
 }
 
 adoc_report()
 {
     adoc_title > ${ADOC}
-    adoc_section "System Performance" >> ${ADOC}
-    adoc_graph "System CPU" ${CPU}.png >> ${ADOC}
-    adoc_graph "System Network" ${NET}-*.png >> ${ADOC}
-    adoc_graph "System Memory" ${MEM}.png >> ${ADOC}
-    adoc_graph "System Memory Buffers" ${BUF}.png >> ${ADOC}
-    adoc_graph "System Paging" ${PGE}.png >> ${ADOC}
-    adoc_graph "System Swapping" ${SWP}.png >> ${ADOC}
+    adoc_system_info >> ${ADOC}
+    adoc_system_graphs >> ${ADOC}
 }
 
 html_report()
