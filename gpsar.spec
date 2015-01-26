@@ -97,6 +97,8 @@ exit 0
 exit 0
 
 %changelog
+* Thu Jan 26 2015 Cloudian Inc <support@cloudian.com> - 0.5-1
+- Fix OS restart problem and add font dependency.
 * Thu Mar 14 2014 Cloudian Inc <support@cloudian.com> - 0.4-1
 - Added Basic System Info.
 * Thu Mar 13 2014 Cloudian Inc <support@cloudian.com> - 0.3-1
