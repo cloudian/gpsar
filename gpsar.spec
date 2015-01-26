@@ -33,6 +33,8 @@ Requires:       grep
 Requires:       sysstat
 Requires:       gnuplot
 Requires:       asciidoc
+Requires:       liberation-fonts-common
+Requires:       liberation-sans-fonts
 
 %description
 gpsar processes sysstat's SAR data files using sadf and plots the
