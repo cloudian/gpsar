@@ -102,7 +102,7 @@ wrapsadf()
         # previous sadf output that contains the header
         HEADER="tail -n +2"
     fi
-    ${SADF} ${SADF_OPTS} ${sarg} ${earg} -- $3 $4 | $HEADER
+    ${SADF} ${SADF_OPTS} ${sarg} ${earg} -- $3 $4 | $HEADER | grep -v 'RESTART'
     return $?
 }
 
