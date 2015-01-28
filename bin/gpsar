@@ -37,6 +37,7 @@ SWP=gpsar_swp
 MEM=gpsar_mem
 BUF=gpsar_buf
 CPU=gpsar_cpu
+PMEM=gpsar_pmem
 
 # Temporary adoc report name
 ADOC=gpsar_adoc.txt
@@ -93,7 +94,7 @@ wrapsadf()
     if [ $2 -eq $1 -a -n "${etime}" ] ; then
         earg="-e ${etime}"
     fi
-    
+
     if [ $1 -eq 1 ] ; then
         # uncomment the header for use in the graph
         HEADER="sed s/^#//"
@@ -123,6 +124,75 @@ combinedsadf()
                 usage
             fi
             wrapsadf ${cnt} $# "${sarargs}" ${sarfile} || exit 1
+            (( cnt++ ))
+        done
+    fi
+}
+
+wrappidstat()
+{
+    # $1 current DD arg num
+    # $2 total number of DD args
+    # $3 path to pidstat file
+    local sarg
+    local earg
+    if [ $1 -eq 1 -a -n "${stime}" ] ; then
+        sarg="${stime}"
+    fi
+    if [ $2 -eq $1 -a -n "${etime}" ] ; then
+        earg="${etime}"
+    fi
+
+    if [ $1 -eq 1 ] ; then
+        HEADER="cat"
+    else
+        # remove the complete header as combining with
+        # previous pidstat output that contains the header
+        HEADER="tail -n +2"
+    fi
+
+    # Awk to always output header and string match the times
+    # based on any start or end range. Also to allow parsing
+    # date/time as one field, just change the first space to
+    # a ';' so gnuplot whitespace will match the others.
+    awk '{\
+            if ( $0 ~ /PID/ ) {\
+                print $0;\
+            } else {\
+	        if ( sarg == "" || $2 >= sarg ) {\
+                    if ( earg == "" || $2 <= earg ) {\
+                        print $0;\
+                    }\
+                }\
+            }\
+    }' sarg=${sarg} earg=${earg} $3 | ${HEADER} | sed -e 's/ /;/'
+
+    return $?
+}
+
+combinedpidstat()
+{
+    # $1 path/pidstat_prefix
+    # $2, $3, ... DD args
+    local pidstat_file
+    pidstat_file=$1
+    shift
+    if [ $# -eq 0 ] ; then
+	file=${pidstat_file}_$(date +%d).log
+        if [ ! -e ${file} ] ; then
+            echo "ERROR: Todays file doesn't exist as file ${file}" 1>&2
+            usage
+        fi
+        wrappidstat 1 1 ${file} || exit 1
+    else
+        cnt=1
+        for dd in $@ ; do
+            file=${pidstat_file}_${dd}.log
+            if [ ! -e ${file} ] ; then
+                echo "ERROR: ${dd} doesn't exist as file ${file}" 1>&2
+                usage
+            fi
+            wrappidstat ${cnt} $# ${file} || exit 1
             (( cnt++ ))
         done
     fi
@@ -370,6 +440,34 @@ EOF
     done
 }
 
+pmem_graph()
+{
+    gnuplot << EOF
+set term ${GPTERM} size 1280,480
+set output "${PMEM}.png"
+$COLORS
+set grid
+set key outside vertical right center nobox title "Process Memory"
+set autoscale
+set yrange [0:100]
+set style data lines
+set ylabel "%mem"
+set format y "%.0f%%"
+set y2label "MB"
+set ytics nomirror
+set y2tics nomirror
+set xdata time
+set timefmt "%Y-%m-%d;%H:%M:%S"
+set format x "%m/%d %H:%M"
+set xtics rotate by 90 offset ${GPXTIC_OFFSET} out nomirror
+set lmargin at screen 0.08
+set rmargin at screen 0.80
+plot "${PMEM}.log" using 1:7 title "%MEM" ls 4,\
+     "" using 1:(\$5/1024) title "VSZ" ls 2 axes x1y2,\
+     "" using 1:(\$6/1024) title "RSS" ls 3 axes x1y2
+EOF
+}
+
 # TODO
 NODE=`uname -n`
 REPORT_TITLE="${NODE}: System Report"
@@ -451,11 +549,20 @@ adoc_system_graphs()
     adoc_graph "System Swapping" ${SWP}.png
 }
 
+adoc_process_graphs()
+{
+    if [ -s ${PMEM}.png ] ; then
+        adoc_section 2 "Process Performance"
+        adoc_graph "Process Memory" ${PMEM}.png
+    fi
+}
+
 adoc_report()
 {
     adoc_title > ${ADOC}
     adoc_system_info >> ${ADOC}
     adoc_system_graphs >> ${ADOC}
+    adoc_process_graphs >> ${ADOC}
 }
 
 html_report()
@@ -464,7 +571,7 @@ html_report()
     asciidoc -a data-uri -a icons -a toc -n -o ${HTML} ${ADOC}
 }
 
-while getopts ":e:f:i:s:v" opt; do
+while getopts ":e:f:i:m:s:v" opt; do
     case "${opt}" in
         e)
             etime=${OPTARG}
@@ -476,6 +583,22 @@ while getopts ":e:f:i:s:v" opt; do
         i)
             # "eth0 eth1" ... network interfaces in a string. 
             ifaces=${OPTARG}
+            ;;
+        m)
+            # Undocumented option as it's a quick hack for now and
+            # we may change how it works.
+            # Special graph to monitor the memory used by a certain
+            # process where memory usage is recorded using pidstat.
+            # Specially formatted pidstat file prefix where the
+            # name is ${pidstat_memory}_XX.log and XX is the date
+            # similar to how sadf works. The format of the file is
+            # 2015-01-26 09:00:01          PID  minflt/s  majflt/s     VSZ    RSS   %MEM  Command
+            # 2015-01-26 09:00:31        10965      0.00      0.00  467856  69632   1.78  beam.smp
+            # 2015-01-26 09:01:01        10965      0.00      0.00  467856  69632   1.78  beam.smp
+            # where the date has been prepended to each line and
+            # the top header has been stripped. Each file should
+            # only contain one header.
+            pidstat_memory=${OPTARG}
             ;;
         s)
             stime=${OPTARG}
@@ -520,15 +643,22 @@ mem_graph
 buf_graph
 net_graph
 
+if [ -n "${pidstat_memory}" ] ; then
+	combinedpidstat ${pidstat_memory} $@ > ${PMEM}.log
+	pmem_graph
+fi
+
 # Intermediate asciidoc file
 adoc_report
 
 # Generate the html report
 html_report
 
-# Clean up working files
+# Clean up working system files
 for rtype in ${NET} ${PGE} ${SWP} ${CPU} ${MEM} ${BUF} ; do
     rm -f ${rtype}.sadf
     rm -f ${rtype}*.png
 done
+# Clean up working process files
+rm -f ${PMEM}.log ${PMEM}.png
 rm -f ${ADOC}
