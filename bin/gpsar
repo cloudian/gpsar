@@ -468,7 +468,7 @@ while getopts ":e:f:i:s:v" opt; do
     case "${opt}" in
         e)
             etime=${OPTARG}
-            timeok ${stime}
+            timeok ${etime}
             ;;
         f)
             sarfile=${OPTARG}
