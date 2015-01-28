@@ -1,6 +1,6 @@
 #########################
 PKG               = gpsar
-VERSION           = 0.5
+VERSION           = 0.6
 RELEASE_CANDIDATE = 1
 #########################
 
